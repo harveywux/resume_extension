@@ -78,6 +78,14 @@ function showLoginView() {
   loginError.classList.add('hidden');
 }
 
+// Title-case a string: first letter uppercase, rest lowercase for each word
+function titleCase(str) {
+  if (!str) return '';
+  return str.replace(/\w\S*/g, function(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  });
+}
+
 // Show main view
 function showMainView(user) {
   loginView.classList.add('hidden');
@@ -85,7 +93,7 @@ function showMainView(user) {
 
   // Update user display
   if (user) {
-    const name = user.name || user.email?.split('@')[0] || 'User';
+    const name = titleCase(user.name) || user.email?.split('@')[0] || 'User';
     userName.textContent = name;
     userEmail.textContent = user.email || '';
     userInitial.textContent = name.charAt(0).toUpperCase();
@@ -103,7 +111,7 @@ async function loadResumeData() {
       const data = response.data;
 
       // Update preview
-      previewName.textContent = data.name || 'No name set';
+      previewName.textContent = titleCase(data.name) || 'No name set';
       previewEmail.textContent = data.email || 'No email set';
       previewLocation.textContent = data.location || 'No location set';
 

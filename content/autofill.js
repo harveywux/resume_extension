@@ -131,6 +131,14 @@
     showNotification(`Filled ${filledCount} fields`, 'success');
   }
 
+  // Title-case a string: first letter uppercase, rest lowercase for each word
+  function titleCase(str) {
+    if (!str) return '';
+    return str.replace(/\w\S*/g, function(word) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    });
+  }
+
   // Map resume data to standard field names
   function mapResumeData(data) {
     const name = data.name || '';
@@ -141,9 +149,9 @@
     const locationParts = location.split(',').map(p => p.trim());
 
     return {
-      firstName: nameParts[0] || '',
-      lastName: nameParts.slice(1).join(' ') || '',
-      fullName: name,
+      firstName: titleCase(nameParts[0] || ''),
+      lastName: titleCase(nameParts.slice(1).join(' ') || ''),
+      fullName: titleCase(name),
       email: data.email || '',
       phone: formatPhone(data.phone),
       city: locationParts[0] || '',
