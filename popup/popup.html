@@ -53,6 +53,27 @@
         </span>
       </button>
 
+      <div class="divider">
+        <span>or</span>
+      </div>
+
+      <button type="button" class="btn btn-token-toggle" id="token-toggle-btn">Login with Token</button>
+
+      <div id="token-login-section" class="hidden">
+        <div class="token-help">
+          Copy your token from <a href="https://hihired.org" target="_blank">hihired.org</a> &rarr; Profile &rarr; Auth Token
+        </div>
+        <div class="form-group">
+          <textarea id="auth-token" placeholder="Paste your auth token here..." rows="3"></textarea>
+        </div>
+        <button type="button" class="btn btn-primary" id="token-login-btn">
+          <span class="btn-text">Connect</span>
+          <span class="btn-loading hidden">
+            <span class="spinner"></span>
+          </span>
+        </button>
+      </div>
+
       <p class="signup-link">
         Don't have an account? <a href="https://hihired.org" target="_blank">Sign up free</a>
       </p>

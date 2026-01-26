@@ -24,6 +24,10 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     handleGoogleLogin(sendResponse);
     return true;
   }
+  if (message.type === 'TOKEN_LOGIN') {
+    handleTokenLogin(message.token, sendResponse);
+    return true;
+  }
   if (message.type === 'REFRESH_CACHE') {
     handleRefreshCache(sendResponse);
     return true;
@@ -183,6 +187,45 @@ function handleGoogleLogin(sendResponse) {
       });
     }
   );
+}
+
+// Login with a manually provided auth token
+function handleTokenLogin(token, sendResponse) {
+  // Validate the token by calling the API
+  fetch(API_BASE_URL + '/api/user/load', {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(function(response) {
+    if (!response.ok) {
+      throw new Error('Invalid or expired token');
+    }
+    return response.json();
+  })
+  .then(function(result) {
+    var resumeData = result.data || result;
+    var user = {
+      name: resumeData.name || '',
+      email: resumeData.email || ''
+    };
+
+    chrome.storage.local.set({
+      authToken: token,
+      user: user,
+      loginTime: Date.now(),
+      resumeData: resumeData,
+      resumeCacheTime: Date.now()
+    }, function() {
+      updateBadge(true);
+      sendResponse({ success: true, user: user });
+    });
+  })
+  .catch(function(error) {
+    sendResponse({ success: false, error: error.message });
+  });
 }
 
 // Get resume data (from cache or fetch)
