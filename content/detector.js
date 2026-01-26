@@ -182,7 +182,11 @@
 
     } catch (error) {
       console.error('[HiHired] Auto-fill error:', error);
-      showNotification('Failed to auto-fill. Please try again.', 'error');
+      if (error.message && error.message.includes('Extension context invalidated')) {
+        showNotification('Extension was updated. Please refresh this page and try again.', 'error');
+      } else {
+        showNotification('Failed to auto-fill. Please try again.', 'error');
+      }
       resetButton(button);
     }
   }

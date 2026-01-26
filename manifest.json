@@ -22,7 +22,8 @@
     "https://*.wd5.myworkdayjobs.com/*",
     "https://*.ashbyhq.com/*",
     "https://*.smartrecruiters.com/*",
-    "https://*.workable.com/*"
+    "https://*.workable.com/*",
+    "https://*.amazonaws.com/*"
   ],
   "background": {
     "service_worker": "background.js"

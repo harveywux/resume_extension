@@ -54,6 +54,24 @@
     }
   };
 
+  // Patterns for detecting resume/CV file upload fields
+  const RESUME_FILE_PATTERNS = {
+    labels: ['resume', 'cv', 'curriculum vitae', 'upload resume', 'attach resume',
+             'upload cv', 'attach cv', 'upload your resume', 'attach your resume'],
+    attrs: ['resume', 'cv', 'resume_file', 'resumeFile', 'resume-file',
+            'resume_upload', 'resumeUpload', 'cv_upload', 'cvUpload']
+  };
+
+  // Patterns to exclude (cover letter, other documents)
+  const EXCLUDE_FILE_PATTERNS = {
+    labels: ['cover letter', 'coverletter', 'cover_letter', 'additional document',
+             'other document', 'supporting document', 'portfolio', 'writing sample',
+             'work sample', 'reference', 'transcript'],
+    attrs: ['cover_letter', 'coverletter', 'coverLetter', 'cover-letter',
+            'additional', 'other_document', 'otherDocument', 'supporting',
+            'writing_sample', 'writingSample', 'portfolio_file']
+  };
+
   // Listen for autofill trigger from detector
   window.addEventListener('message', async (event) => {
     if (event.source !== window) return;
@@ -105,15 +123,22 @@
       }
     }
 
+    // Try to attach resume PDF to file upload fields
+    const resumeAttached = await attachResumePDF();
+    if (resumeAttached) {
+      filledCount++;
+    }
+
     // Show completion notification
     const button = document.querySelector('.hihired-autofill-button');
+    const resumeNote = resumeAttached ? ' + resume attached' : '';
     if (button) {
       button.classList.remove('loading');
       button.innerHTML = `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="20,6 9,17 4,12"></polyline>
         </svg>
-        <span>Filled ${filledCount} fields</span>
+        <span>Filled ${filledCount} fields${resumeNote}</span>
       `;
 
       // Reset button after 3 seconds
@@ -128,7 +153,7 @@
       }, 3000);
     }
 
-    showNotification(`Filled ${filledCount} fields`, 'success');
+    showNotification(`Filled ${filledCount} fields${resumeNote}`, 'success');
   }
 
   // Title-case a string: first letter uppercase, rest lowercase for each word
@@ -316,6 +341,115 @@
     });
 
     setTimeout(() => notification.remove(), 5000);
+  }
+
+  // Detect file inputs that are for resume/CV uploads (not cover letters or other docs)
+  function detectResumeFileInputs() {
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    const matches = [];
+
+    for (const input of fileInputs) {
+      if (input.disabled) continue;
+
+      // Gather all text signals for this input
+      const name = (input.name || '').toLowerCase();
+      const id = (input.id || '').toLowerCase();
+      const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
+
+      let labelText = '';
+      if (input.id) {
+        const label = document.querySelector(`label[for="${input.id}"]`);
+        if (label) labelText = label.textContent.toLowerCase();
+      }
+      const parentLabel = input.closest('label');
+      if (parentLabel) {
+        labelText = parentLabel.textContent.toLowerCase();
+      }
+
+      // Check surrounding container text
+      const container = input.closest('div, section, fieldset');
+      const containerText = container ? container.textContent.toLowerCase() : '';
+
+      // Check if this is a cover letter or other excluded field
+      const isExcluded = EXCLUDE_FILE_PATTERNS.attrs.some(attr =>
+        name.includes(attr) || id.includes(attr)
+      ) || EXCLUDE_FILE_PATTERNS.labels.some(label =>
+        labelText.includes(label) || ariaLabel.includes(label) || containerText.includes(label)
+      );
+
+      if (isExcluded) continue;
+
+      // Check for positive resume/CV match via name/id attributes
+      const attrMatch = RESUME_FILE_PATTERNS.attrs.some(attr =>
+        name.includes(attr) || id.includes(attr)
+      );
+
+      // Check for positive resume/CV match via labels
+      const labelMatch = RESUME_FILE_PATTERNS.labels.some(label =>
+        labelText.includes(label) || ariaLabel.includes(label) || containerText.includes(label)
+      );
+
+      if (attrMatch || labelMatch) {
+        matches.push(input);
+      }
+    }
+
+    return matches;
+  }
+
+  // Fetch resume PDF from background and attach to file inputs
+  async function attachResumePDF() {
+    const fileInputs = detectResumeFileInputs();
+    if (fileInputs.length === 0) {
+      console.log('[HiHired] No resume file input fields detected');
+      return false;
+    }
+
+    console.log('[HiHired] Found', fileInputs.length, 'resume file input(s), fetching PDF...');
+
+    try {
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: 'GET_RESUME_PDF' }, resolve);
+      });
+
+      if (!response || !response.success) {
+        console.warn('[HiHired] Failed to fetch resume PDF:', response?.error || 'Unknown error');
+        return false;
+      }
+
+      // Convert byte array back to Uint8Array
+      const pdfBytes = new Uint8Array(response.pdfData);
+      const filename = response.filename || 'resume.pdf';
+
+      console.log('[HiHired] PDF fetched:', filename, '(' + pdfBytes.length + ' bytes)');
+
+      // Create a File object from the PDF bytes
+      const file = new File([pdfBytes], filename, { type: 'application/pdf' });
+
+      let attached = false;
+      for (const input of fileInputs) {
+        try {
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          input.files = dt.files;
+
+          // Dispatch change event to notify frameworks
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+
+          console.log('[HiHired] Resume PDF attached to:', input.name || input.id || 'file input');
+          highlightField(input);
+          attached = true;
+        } catch (err) {
+          console.warn('[HiHired] Could not attach PDF to input:', err);
+        }
+      }
+
+      return attached;
+    } catch (error) {
+      console.error('[HiHired] Error attaching resume PDF:', error);
+      return false;
+    }
   }
 
   // Get preferences

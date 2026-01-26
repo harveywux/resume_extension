@@ -36,6 +36,10 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     handleAPIRequest(message.endpoint, message.options, sendResponse);
     return true;
   }
+  if (message.type === 'GET_RESUME_PDF') {
+    handleGetResumePDF(sendResponse);
+    return true;
+  }
   return false;
 });
 
@@ -300,6 +304,95 @@ function fetchAndCacheResumeData(token, callback) {
   })
   .catch(function(error) {
     callback(null, error.message);
+  });
+}
+
+// Fetch the latest resume PDF as bytes
+function handleGetResumePDF(sendResponse) {
+  chrome.storage.local.get('authToken', function(data) {
+    if (!data.authToken) {
+      sendResponse({ success: false, error: 'Not authenticated' });
+      return;
+    }
+
+    var token = data.authToken;
+    var headers = {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    };
+
+    // Step 1: Get resume history
+    fetch(API_BASE_URL + '/api/resume/history', {
+      method: 'GET',
+      headers: headers
+    })
+    .then(function(response) {
+      if (!response.ok) throw new Error('Failed to fetch resume history');
+      return response.json();
+    })
+    .then(function(result) {
+      var history = result.history || [];
+      if (history.length === 0) {
+        throw new Error('No resume found in history');
+      }
+
+      // Get the most recent resume
+      var latest = history[0];
+      var filename = latest.s3_path || latest.resume_name || '';
+
+      // Strip query parameters (s3_path may contain old presigned URL params)
+      if (filename.includes('?')) {
+        filename = filename.split('?')[0];
+      }
+
+      // Extract just the filename from the path
+      if (filename.includes('/')) {
+        filename = filename.split('/').pop();
+      }
+
+      if (!filename) {
+        throw new Error('No resume filename found');
+      }
+
+      // Step 2: Get presigned download URL
+      return fetch(API_BASE_URL + '/api/resume/download/' + encodeURIComponent(filename), {
+        method: 'GET',
+        headers: headers
+      });
+    })
+    .then(function(response) {
+      if (!response.ok) throw new Error('Failed to get download URL');
+      return response.json();
+    })
+    .then(function(result) {
+      var downloadUrl = result.downloadUrl || result.download_url || '';
+      var resumeFilename = result.filename || 'resume.pdf';
+
+      if (!downloadUrl) {
+        throw new Error('No download URL returned');
+      }
+
+      // Step 3: Download the PDF bytes
+      return fetch(downloadUrl).then(function(response) {
+        if (!response.ok) throw new Error('Failed to download PDF');
+        return response.arrayBuffer().then(function(buffer) {
+          return { buffer: buffer, filename: resumeFilename };
+        });
+      });
+    })
+    .then(function(result) {
+      // Convert ArrayBuffer to regular array for message passing
+      var bytes = Array.from(new Uint8Array(result.buffer));
+      sendResponse({
+        success: true,
+        pdfData: bytes,
+        filename: result.filename
+      });
+    })
+    .catch(function(error) {
+      console.error('[HiHired] Failed to fetch resume PDF:', error);
+      sendResponse({ success: false, error: error.message });
+    });
   });
 }
 
