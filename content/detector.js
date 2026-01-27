@@ -65,8 +65,8 @@
       // Start observing
       startObserving();
 
-      // Initial check
-      checkForForms();
+      // Delay initial check to allow React/SPA frameworks to hydrate first
+      setTimeout(checkForForms, 1500);
     });
   }
 
@@ -101,10 +101,10 @@
     });
   }
 
-  // Inject auto-fill button into form
+  // Inject auto-fill button before form (as sibling, outside React's DOM tree)
   function injectAutofillButton(form) {
-    // Check if button already exists
-    if (form.querySelector('.hihired-autofill-button')) {
+    // Check if button already exists (as previous sibling or anywhere on page)
+    if (document.querySelector('.hihired-autofill-button')) {
       return;
     }
 
@@ -125,38 +125,14 @@
       triggerAutofill(form);
     });
 
-    // Find best insertion point
-    const insertPoint = findInsertPoint(form);
-    if (insertPoint) {
-      insertPoint.insertBefore(button, insertPoint.firstChild);
+    // Insert before the form as a sibling to avoid disrupting React hydration
+    if (form.parentNode) {
+      form.parentNode.insertBefore(button, form);
     } else {
-      form.insertBefore(button, form.firstChild);
+      document.body.appendChild(button);
     }
 
     console.log('[HiHired] Auto-fill button injected');
-  }
-
-  // Find best place to insert button
-  function findInsertPoint(form) {
-    // Platform-specific insertion points
-    const insertSelectors = {
-      linkedin: '.jobs-easy-apply-content > div:first-child, .jobs-easy-apply-form-section',
-      greenhouse: '.application-details, .application-form-header, #application-form > div:first-child',
-      lever: '.application-form-header, .section-wrapper:first-child',
-      workday: '.application-content > div:first-child',
-      indeed: '.ia-Questions, .ia-container > div:first-child',
-      ashby: '.application-form > div:first-child',
-      smartrecruiters: '.job-apply-form > div:first-child',
-      workable: '.apply-form > div:first-child'
-    };
-
-    const selector = insertSelectors[platform];
-    if (selector) {
-      const point = form.querySelector(selector) || document.querySelector(selector);
-      if (point) return point;
-    }
-
-    return form;
   }
 
   // Extract job description text from the page
@@ -240,8 +216,8 @@
       }
     }
 
-    // Show loading state on button
-    const button = form.querySelector('.hihired-autofill-button');
+    // Show loading state on button (button is a sibling before the form)
+    const button = document.querySelector('.hihired-autofill-button');
     if (button) {
       button.classList.add('loading');
       button.innerHTML = `
