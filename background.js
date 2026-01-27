@@ -126,7 +126,7 @@ function handleLogout(sendResponse) {
 
 // Google Login using launchWebAuthFlow (works with web OAuth client)
 function handleGoogleLogin(sendResponse) {
-  var clientId = '978604541120-fmcim15k16vbatesna24ulke8m4buldp.apps.googleusercontent.com';
+  var clientId = '147054294144-fhgdkmsgnqh9fn9t1o84n9nu2jb5k05f.apps.googleusercontent.com';
   var redirectUri = chrome.identity.getRedirectURL();
   var scopes = ['openid', 'email', 'profile'];
 

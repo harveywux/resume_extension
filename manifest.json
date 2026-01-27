@@ -3,6 +3,7 @@
   "name": "HiHired Auto-Fill",
   "version": "1.0.0",
   "description": "Auto-fill job applications with your HiHired resume data",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoGMLGf5U/MX5xlJx+McHy5J99Af8SztVTcxcDrdGib/LQEFKrtf2IPSis7GUqygaNQPom0FKGeRzNN5nlNOkuwSaRMXQw4lcFEjH4nf06P/R0qe8QVPVb7hQhaUh5U2hGQKLDReo0FsFxj8jnyUtYV04z8/5zYrYj9jClqcdliqkZeoBkkO+ApvR80nWtQmCC5SkN7dIe0Zoi076GMW53WqwqYGTigE9s25ixrI1h59YzdbuN+49SrEI0d/cYj5aSL3rxvpgaTGMvxWiRBZdOHQmDrFBUvSzjkbIk42G7yakPyCQ04D4ap0chTiQlfS0l7VIuQyxVE40/ZEwqV1YYwIDAQAB",
   "permissions": [
     "storage",
     "activeTab",
