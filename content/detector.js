@@ -36,6 +36,18 @@
     workable: '.application-form, form.apply-form'
   };
 
+  // Job description selectors by platform
+  const JD_SELECTORS = {
+    linkedin: '.jobs-description__content, .job-details-module, .jobs-description, .jobs-box__html-content',
+    indeed: '#jobDescriptionText, .jobsearch-jobDescriptionText',
+    greenhouse: '#content .body, .job-description, .job__description',
+    lever: '.section-wrapper .content, .posting-page .content, .posting-description',
+    workday: '.job-description, [data-automation-id="jobPostingDescription"]',
+    ashby: '.ashby-job-posting-description, .job-description',
+    smartrecruiters: '.job-description, .jobad-description',
+    workable: '.job-description, .job-details'
+  };
+
   let observer = null;
   let injectedForms = new WeakSet();
 
@@ -147,9 +159,86 @@
     return form;
   }
 
+  // Extract job description text from the page
+  function extractJobDescription() {
+    const selectors = JD_SELECTORS[platform];
+    if (!selectors) return '';
+
+    for (const selector of selectors.split(',')) {
+      const el = document.querySelector(selector.trim());
+      if (el) {
+        const text = el.innerText || el.textContent || '';
+        if (text.trim().length > 50) {
+          console.log('[HiHired] Extracted JD from:', selector.trim(), '(' + text.length + ' chars)');
+          return text.trim();
+        }
+      }
+    }
+
+    return '';
+  }
+
+  // Show tailor confirmation dialog, returns a Promise that resolves to true (tailor) or false (skip)
+  function showTailorDialog() {
+    return new Promise((resolve) => {
+      // Remove any existing dialog
+      const existing = document.querySelector('.hihired-dialog-overlay');
+      if (existing) existing.remove();
+
+      const overlay = document.createElement('div');
+      overlay.className = 'hihired-dialog-overlay';
+      overlay.innerHTML = `
+        <div class="hihired-dialog">
+          <h3>Polish your resume for this role?</h3>
+          <p>We'll tailor your resume to match this job description using AI.</p>
+          <div class="hihired-dialog-buttons">
+            <button class="hihired-dialog-btn hihired-dialog-primary">Yes, tailor it</button>
+            <button class="hihired-dialog-btn hihired-dialog-secondary">No, use existing</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('.hihired-dialog-primary').addEventListener('click', () => {
+        overlay.remove();
+        resolve(true);
+      });
+
+      overlay.querySelector('.hihired-dialog-secondary').addEventListener('click', () => {
+        overlay.remove();
+        resolve(false);
+      });
+
+      // Close on overlay click
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.remove();
+          resolve(false);
+        }
+      });
+    });
+  }
+
   // Trigger auto-fill
   async function triggerAutofill(form) {
     console.log('[HiHired] Triggering auto-fill');
+
+    // Extract job description from the page
+    const jdText = extractJobDescription();
+    let tailorJD = '';
+
+    // If JD found, ask user if they want to tailor their resume
+    if (jdText) {
+      console.log('[HiHired] Job description found (' + jdText.length + ' chars), showing tailor dialog');
+      const wantsTailor = await showTailorDialog();
+      if (wantsTailor) {
+        tailorJD = jdText;
+        console.log('[HiHired] User chose to tailor resume');
+      } else {
+        console.log('[HiHired] User chose to use existing resume');
+      }
+    }
 
     // Show loading state on button
     const button = form.querySelector('.hihired-autofill-button');
@@ -157,7 +246,7 @@
       button.classList.add('loading');
       button.innerHTML = `
         <span class="hihired-spinner"></span>
-        <span>Filling...</span>
+        <span>${tailorJD ? 'Tailoring & Filling...' : 'Filling...'}</span>
       `;
     }
 
@@ -173,11 +262,12 @@
         return;
       }
 
-      // Trigger autofill with the data
+      // Trigger autofill with the data, passing tailorJD if user chose to tailor
       window.postMessage({
         type: 'HIHIRED_AUTOFILL',
         data: response.data,
-        platform: platform
+        platform: platform,
+        tailorJD: tailorJD
       }, '*');
 
     } catch (error) {

@@ -40,6 +40,10 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     handleGetResumePDF(sendResponse);
     return true;
   }
+  if (message.type === 'TAILOR_RESUME') {
+    handleTailorResume(message.jobDescription, sendResponse);
+    return true;
+  }
   return false;
 });
 
@@ -391,6 +395,64 @@ function handleGetResumePDF(sendResponse) {
     })
     .catch(function(error) {
       console.error('[HiHired] Failed to fetch resume PDF:', error);
+      sendResponse({ success: false, error: error.message });
+    });
+  });
+}
+
+// Tailor resume based on job description, then download the generated PDF
+function handleTailorResume(jobDescription, sendResponse) {
+  chrome.storage.local.get('authToken', function(data) {
+    if (!data.authToken) {
+      sendResponse({ success: false, error: 'Not authenticated' });
+      return;
+    }
+
+    var token = data.authToken;
+
+    // Step 1: Call the tailor endpoint
+    fetch(API_BASE_URL + '/api/resume/tailor', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ job_description: jobDescription })
+    })
+    .then(function(response) {
+      if (!response.ok) {
+        return response.json().then(function(err) {
+          throw new Error(err.error || 'Failed to tailor resume');
+        });
+      }
+      return response.json();
+    })
+    .then(function(result) {
+      var downloadUrl = result.downloadUrl || '';
+      var filename = result.filename || 'tailored_resume.pdf';
+
+      if (!downloadUrl) {
+        throw new Error('No download URL returned');
+      }
+
+      // Step 2: Download the tailored PDF bytes
+      return fetch(downloadUrl).then(function(response) {
+        if (!response.ok) throw new Error('Failed to download tailored PDF');
+        return response.arrayBuffer().then(function(buffer) {
+          return { buffer: buffer, filename: filename };
+        });
+      });
+    })
+    .then(function(result) {
+      var bytes = Array.from(new Uint8Array(result.buffer));
+      sendResponse({
+        success: true,
+        pdfData: bytes,
+        filename: result.filename
+      });
+    })
+    .catch(function(error) {
+      console.error('[HiHired] Failed to tailor resume:', error);
       sendResponse({ success: false, error: error.message });
     });
   });

@@ -77,14 +77,14 @@
     if (event.source !== window) return;
     if (event.data.type !== 'HIHIRED_AUTOFILL') return;
 
-    const { data, platform } = event.data;
-    console.log('[HiHired] Starting auto-fill for platform:', platform);
+    const { data, platform, tailorJD } = event.data;
+    console.log('[HiHired] Starting auto-fill for platform:', platform, tailorJD ? '(with JD tailoring)' : '');
 
-    await performAutofill(data, platform);
+    await performAutofill(data, platform, tailorJD);
   });
 
   // Perform auto-fill on the page
-  async function performAutofill(resumeData, platform) {
+  async function performAutofill(resumeData, platform, tailorJD) {
     // Map resume data to form fields
     const mapped = mapResumeData(resumeData);
     console.log('[HiHired] Mapped data:', mapped);
@@ -124,7 +124,8 @@
     }
 
     // Try to attach resume PDF to file upload fields
-    const resumeAttached = await attachResumePDF();
+    // If tailorJD is provided, generate a tailored resume first
+    const resumeAttached = await attachResumePDF(tailorJD);
     if (resumeAttached) {
       filledCount++;
     }
@@ -397,19 +398,25 @@
     return matches;
   }
 
-  // Fetch resume PDF from background and attach to file inputs
-  async function attachResumePDF() {
+  // Fetch resume PDF from background and attach to file inputs.
+  // If tailorJD is provided, sends it to the backend to generate a tailored PDF first.
+  async function attachResumePDF(tailorJD) {
     const fileInputs = detectResumeFileInputs();
     if (fileInputs.length === 0) {
       console.log('[HiHired] No resume file input fields detected');
       return false;
     }
 
-    console.log('[HiHired] Found', fileInputs.length, 'resume file input(s), fetching PDF...');
+    console.log('[HiHired] Found', fileInputs.length, 'resume file input(s),',
+      tailorJD ? 'tailoring resume...' : 'fetching PDF...');
 
     try {
+      // Use TAILOR_RESUME if JD provided, otherwise GET_RESUME_PDF
+      const msg = tailorJD
+        ? { type: 'TAILOR_RESUME', jobDescription: tailorJD }
+        : { type: 'GET_RESUME_PDF' };
       const response = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'GET_RESUME_PDF' }, resolve);
+        chrome.runtime.sendMessage(msg, resolve);
       });
 
       if (!response || !response.success) {
