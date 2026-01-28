@@ -24,10 +24,6 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     handleGoogleLogin(sendResponse);
     return true;
   }
-  if (message.type === 'TOKEN_LOGIN') {
-    handleTokenLogin(message.token, sendResponse);
-    return true;
-  }
   if (message.type === 'REFRESH_CACHE') {
     handleRefreshCache(sendResponse);
     return true;
@@ -158,82 +154,60 @@ function handleGoogleLogin(sendResponse) {
         return;
       }
 
-      // Send the Google access token to our backend
-      fetch(API_BASE_URL + '/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: accessToken })
+      // Fetch user profile from Google, then send to our backend
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
       })
-      .then(function(response) {
-        return response.json().then(function(data) {
-          return { ok: response.ok, data: data };
-        });
-      })
-      .then(function(result) {
-        if (!result.ok) {
-          sendResponse({ success: false, error: result.data.error || 'Google login failed' });
+      .then(function(res) { return res.json(); })
+      .then(function(profile) {
+        if (!profile.email) {
+          sendResponse({ success: false, error: 'Failed to get Google profile' });
           return;
         }
 
-        if (result.data.token) {
-          chrome.storage.local.set({
-            authToken: result.data.token,
-            user: result.data.user || {},
-            loginTime: Date.now()
-          }, function() {
-            fetchAndCacheResumeData(result.data.token, function() {
-              updateBadge(true);
-              sendResponse({ success: true, user: result.data.user || {} });
-            });
+        return fetch(API_BASE_URL + '/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: accessToken,
+            email: profile.email,
+            name: profile.name || '',
+            picture: profile.picture || '',
+            google_id: profile.sub || ''
+          })
+        })
+        .then(function(response) {
+          return response.json().then(function(data) {
+            return { ok: response.ok, data: data };
           });
-        } else {
-          sendResponse({ success: false, error: 'Invalid response from server' });
-        }
+        })
+        .then(function(result) {
+          if (!result.ok) {
+            sendResponse({ success: false, error: result.data.message || 'Google login failed' });
+            return;
+          }
+
+          if (result.data.token) {
+            chrome.storage.local.set({
+              authToken: result.data.token,
+              user: result.data.user || {},
+              loginTime: Date.now()
+            }, function() {
+              fetchAndCacheResumeData(result.data.token, function() {
+                updateBadge(true);
+                sendResponse({ success: true, user: result.data.user || {} });
+              });
+            });
+          } else {
+            sendResponse({ success: false, error: 'Invalid response from server' });
+          }
+        });
       })
       .catch(function(error) {
         sendResponse({ success: false, error: error.message });
       });
     }
   );
-}
-
-// Login with a manually provided auth token
-function handleTokenLogin(token, sendResponse) {
-  // Validate the token by calling the API
-  fetch(API_BASE_URL + '/api/user/load', {
-    method: 'GET',
-    headers: {
-      'Authorization': 'Bearer ' + token,
-      'Content-Type': 'application/json'
-    }
-  })
-  .then(function(response) {
-    if (!response.ok) {
-      throw new Error('Invalid or expired token');
-    }
-    return response.json();
-  })
-  .then(function(result) {
-    var resumeData = result.data || result;
-    var user = {
-      name: resumeData.name || '',
-      email: resumeData.email || ''
-    };
-
-    chrome.storage.local.set({
-      authToken: token,
-      user: user,
-      loginTime: Date.now(),
-      resumeData: resumeData,
-      resumeCacheTime: Date.now()
-    }, function() {
-      updateBadge(true);
-      sendResponse({ success: true, user: user });
-    });
-  })
-  .catch(function(error) {
-    sendResponse({ success: false, error: error.message });
-  });
 }
 
 // Get resume data (from cache or fetch)

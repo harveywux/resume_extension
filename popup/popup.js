@@ -6,10 +6,6 @@ const mainView = document.getElementById('main-view');
 const loginForm = document.getElementById('login-form');
 const loginBtn = document.getElementById('login-btn');
 const googleLoginBtn = document.getElementById('google-login-btn');
-const tokenToggleBtn = document.getElementById('token-toggle-btn');
-const tokenLoginSection = document.getElementById('token-login-section');
-const tokenLoginBtn = document.getElementById('token-login-btn');
-const authTokenInput = document.getElementById('auth-token');
 const loginError = document.getElementById('login-error');
 const logoutBtn = document.getElementById('logout-btn');
 const refreshBtn = document.getElementById('refresh-btn');
@@ -278,43 +274,3 @@ googleLoginBtn.addEventListener('click', async () => {
   }
 });
 
-// Token login toggle
-tokenToggleBtn.addEventListener('click', () => {
-  tokenLoginSection.classList.toggle('hidden');
-  tokenToggleBtn.textContent = tokenLoginSection.classList.contains('hidden')
-    ? 'Login with Token'
-    : 'Hide token login';
-});
-
-// Token login handler
-tokenLoginBtn.addEventListener('click', async () => {
-  const token = authTokenInput.value.trim();
-
-  if (!token) {
-    showError('Please paste your auth token');
-    return;
-  }
-
-  // Show loading state
-  tokenLoginBtn.disabled = true;
-  tokenLoginBtn.querySelector('.btn-text').classList.add('hidden');
-  tokenLoginBtn.querySelector('.btn-loading').classList.remove('hidden');
-  loginError.classList.add('hidden');
-
-  try {
-    const response = await sendMessage({ type: 'TOKEN_LOGIN', token });
-
-    if (response.success) {
-      showMainView(response.user);
-      await loadResumeData();
-    } else {
-      showError(response.error || 'Invalid token. Please try again.');
-    }
-  } catch (error) {
-    showError('Connection error. Please try again.');
-  } finally {
-    tokenLoginBtn.disabled = false;
-    tokenLoginBtn.querySelector('.btn-text').classList.remove('hidden');
-    tokenLoginBtn.querySelector('.btn-loading').classList.add('hidden');
-  }
-});
